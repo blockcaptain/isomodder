@@ -1,5 +1,7 @@
 import io
 from typing import Iterable, NamedTuple
+import hashlib
+from pathlib import Path
 
 
 class HashFileRecord(NamedTuple):
@@ -14,4 +16,8 @@ def parse_hash_file(fp: io.TextIOBase) -> Iterable[HashFileRecord]:
 
 
 def write_hash_file(fp: io.TextIOBase, records: Iterable[HashFileRecord]) -> None:
-    fp.writelines(f"{record.digest}\t\t{record.path}" for record in records)
+    fp.writelines(f"{record.digest}  {record.path}\n" for record in records)
+
+
+def compute_digest(fp: io.RawIOBase, path: Path) -> HashFileRecord:
+    return HashFileRecord("." + str(path), hashlib.md5(fp.read()).hexdigest())

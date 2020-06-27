@@ -1,12 +1,12 @@
 import io
 from abc import ABC, abstractmethod
 from functools import partial
-from typing import Any
+from typing import Any, Iterable, Callable, cast
 
 SIZE_256KiB = 256 * 1024
 
 
-def chunk_stream(stream: io.RawIOBase):
+def chunk_stream(stream: io.RawIOBase) -> Iterable[bytes]:
     return iter(partial(stream.read, SIZE_256KiB), b"")
 
 

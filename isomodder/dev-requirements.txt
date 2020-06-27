@@ -1,2 +1,5 @@
 isort
 black
+flake8
+autoflake
+mypy

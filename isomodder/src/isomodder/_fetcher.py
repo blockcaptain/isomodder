@@ -40,9 +40,7 @@ def download_all(
             filename = url[1].split("/")[-1]
             path = directory_path / filename
             task_id = progress_instance.add_task(url[0], start=False) if progress_instance else None
-            futures.append(
-                pool.submit(download, task_id, url[0], url[1], directory_path / filename, progress_instance,)
-            )
+            futures.append(pool.submit(download, task_id, url[0], url[1], path, progress_instance))
         for f in as_completed(futures):
             f.result()
 
@@ -78,7 +76,7 @@ class BaseIsoFetcher(object):
     def fetch(self, progress: ProgressReporter = None) -> Path:
         logging.info("Checking for existing ISO.")
         if self._is_validated():
-            logging.info(f"Found existing validated ISO.")
+            logging.info("Found existing validated ISO.")
             return self._iso_path
 
         if not self._need_download():
@@ -90,7 +88,7 @@ class BaseIsoFetcher(object):
 
         logging.info("Start validating ISO.")
         if self._validate():
-            logging.info(f"Validated ISO.")
+            logging.info("Validated ISO.")
         else:
             raise IsoModderFatalException("ISO validation failed. Re-run to attempt the download again.")
 

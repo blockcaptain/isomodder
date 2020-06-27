@@ -4,9 +4,8 @@ import io
 import logging
 import stat
 import tempfile
-import uuid
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 import pycdlib
 from pycdlib.dr import DirectoryRecord
@@ -122,7 +121,7 @@ class IsoFile(contextlib.AbstractContextManager):
         self._iso.write(
             str(path), blocksize=SIZE_256KiB, progress_cb=progress_cb, progress_opaque=task_id,
         )
-        logging.info(f"Finished writing ISO.")
+        logging.info("Finished writing ISO.")
 
 
 class IsoFileWriter(contextlib.AbstractContextManager):

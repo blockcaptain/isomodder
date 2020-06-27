@@ -1,8 +1,10 @@
 import re
 from pathlib import Path
 from typing import Optional
-
+from . import _hashing as hashing
 from ._iso import IsoFile
+import io
+import itertools
 
 
 class AutoInstallBuilder(object):
@@ -25,6 +27,7 @@ class AutoInstallBuilder(object):
         self._additional_dirs = []
         self._supports_mbr = supports_mbr
         self._supports_efi = supports_efi
+        self._grub_digest = None
 
     def add_directory(self, source_path: Path, iso_path: Path) -> None:
         self._source_iso.copy_directory(source_path, iso_path)
@@ -36,7 +39,15 @@ class AutoInstallBuilder(object):
         self._update_hash_file()
 
     def _update_hash_file(self) -> None:
-        pass
+        md5_path = Path("/md5sum.txt")
+        with self._source_iso.open_file_read(md5_path) as file:
+            records = hashing.parse_hash_file(io.TextIOWrapper(file))
+            grub_path_str = f".{self.grub_path}"
+            new_records = list(
+                itertools.chain((r for r in records if r.path != grub_path_str), [self._grub_digest])
+            )
+        with self._source_iso.replace_file_write(md5_path) as file:
+            hashing.write_hash_file(io.TextIOWrapper(file), new_records)
 
     def _update_grub(self) -> None:
         grub_text = self._source_iso.read_text(self.grub_path)
@@ -59,11 +70,12 @@ class AutoInstallBuilder(object):
             )
             return text
 
+        grub_text = modify_text(grub_text, None if self._supports_efi else "EFI", True)
+        self._grub_digest = hashing.compute_digest(io.BytesIO(grub_text.encode()), self.grub_path)
+
+        self._source_iso.replace_text(self.grub_path, grub_text)
         self._source_iso.replace_text(
-            self.grub_path, modify_text(grub_text, None if self._supports_efi else "EFI", True),
-        )
-        self._source_iso.replace_text(
-            self.isolinux_path, modify_text(isolinux_text, None if self._supports_mbr else "MBR", False),
+            self.isolinux_path, modify_text(isolinux_text, None if self._supports_mbr else "MBR", False)
         )
 
     def _add_autoinstall(self) -> None:
