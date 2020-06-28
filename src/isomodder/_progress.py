@@ -1,7 +1,7 @@
 import io
 from abc import ABC, abstractmethod
 from functools import partial
-from typing import Any, Iterable, Callable, cast
+from typing import Any, Iterable
 
 SIZE_256KiB = 256 * 1024
 
