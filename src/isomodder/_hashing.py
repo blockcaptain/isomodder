@@ -1,7 +1,7 @@
-import io
-from typing import Iterable, NamedTuple
 import hashlib
+import io
 from pathlib import Path
+from typing import Iterable, NamedTuple
 
 
 class HashFileRecord(NamedTuple):

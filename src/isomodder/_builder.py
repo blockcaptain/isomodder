@@ -1,10 +1,11 @@
+import io
+import itertools
 import re
 from pathlib import Path
 from typing import Optional
+
 from . import _hashing as hashing
 from ._iso import IsoFile
-import io
-import itertools
 
 
 class AutoInstallBuilder(object):

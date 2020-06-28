@@ -13,3 +13,9 @@ repos:
         language: python
         types: [python]
         require_serial: true
+      - id: isort
+        name: isort
+        entry: isort
+        require_serial: true
+        language: python
+        types: [python]
