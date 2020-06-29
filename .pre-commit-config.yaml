@@ -19,3 +19,9 @@ repos:
         require_serial: true
         language: python
         types: [python]
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: python
+        files: src
+        require_serial: true

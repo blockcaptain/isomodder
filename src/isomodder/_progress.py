@@ -1,13 +1,12 @@
-import io
 from abc import ABC, abstractmethod
 from functools import partial
-from typing import Any, Iterable
+from typing import Any, BinaryIO, Iterable
 
 SIZE_256KiB = 256 * 1024
 
 
-def chunk_stream(stream: io.RawIOBase) -> Iterable[bytes]:
-    return iter(partial(stream.read, SIZE_256KiB), b"")
+def chunk_stream(stream: BinaryIO, chunk_size: int = SIZE_256KiB) -> Iterable[bytes]:
+    return iter(partial(stream.read, chunk_size), b"")
 
 
 class ProgressReporter(ABC):

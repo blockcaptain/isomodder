@@ -1,17 +1,16 @@
-import hashlib
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Iterable, Tuple
+from typing import Any, Iterable, Optional, Tuple
 from urllib.request import urlopen
 
 from ._failure import IsoModderFatalException
-from ._hashing import parse_hash_file
+from ._hashing import compute_digest, parse_hash_file
 from ._progress import ProgressReporter, chunk_stream
 
 
 def download(
-    task_id: Any, description: str, url: str, file_path: Path, progress_instance: ProgressReporter,
+    task_id: Any, description: str, url: str, file_path: Path, progress_instance: Optional[ProgressReporter],
 ) -> None:
     response = urlopen(url)
     total_length = int(response.info()["Content-length"])
@@ -32,7 +31,7 @@ def download(
 
 
 def download_all(
-    urls: Iterable[Tuple[str, str]], directory_path: Path, progress_instance: ProgressReporter,
+    urls: Iterable[Tuple[str, str]], directory_path: Path, progress_instance: Optional[ProgressReporter],
 ) -> None:
     with ThreadPoolExecutor(max_workers=4) as pool:
         futures = []
@@ -97,7 +96,7 @@ class BaseIsoFetcher(object):
     def _need_download(self) -> bool:
         return not self._iso_path.exists() or not self._checksum_path.exists()
 
-    def _download(self, progress: ProgressReporter) -> None:
+    def _download(self, progress: Optional[ProgressReporter]) -> None:
         download_all(
             [
                 ("ISO", f"{self._base_url}/{self._iso_name}"),
@@ -115,23 +114,20 @@ class BaseIsoFetcher(object):
         )
 
     def _validate(self) -> bool:
-        hasher = hashlib.md5()
         with self._iso_path.open("rb") as iso_file:
-            for data in chunk_stream(iso_file):
-                hasher.update(data)
-        desired = hasher.hexdigest()
+            desired = compute_digest(iso_file)
         with self._checksum_path.open("r") as checksum_file:
             try:
                 actual = next(h.digest for h in parse_hash_file(checksum_file) if h.path == self._iso_name)
             except StopIteration:
                 raise IsoModderFatalException(
-                    f"Could not find the digest for {self.iso_name} in {self._validation_path}."
+                    f"Could not find the digest for {self._iso_name} in {self._validation_path}."
                 )
         if desired == actual:
             self._validation_path.touch()
             return True
         else:
-            logging.error(f"For {self.iso_name}, expected md5: {desired}, actual md5: {actual}.")
+            logging.error(f"For {self._iso_name}, expected md5: {desired}, actual md5: {actual}.")
             return False
 
 
