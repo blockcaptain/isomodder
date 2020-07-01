@@ -4,10 +4,10 @@ import re
 import stat
 import tarfile
 from pathlib import Path
-from typing import BinaryIO, List, Optional, Union
+from typing import BinaryIO, List, Optional, Union, cast
 
 from ._hashing import HashFileRecord, create_hash_file_record, parse_hash_file, write_hash_file
-from ._iso import IsoFile
+from ._iso import IsoFile, copy_directory, read_text, replace_text, write_text
 
 
 class AutoInstallBuilder(object):
@@ -33,8 +33,13 @@ class AutoInstallBuilder(object):
         self._supports_efi = supports_efi
 
     def add_from_directory(self, source_path: Path, iso_path: Path) -> None:
-        self._source_iso.copy_directory(source_path, iso_path)
-        # glob directory add md5s here
+        copy_directory(self._source_iso, source_path, iso_path)
+        new_records = (
+            create_hash_file_record(ipath.open("rb"), iso_path / ipath.relative_to(source_path))
+            for ipath in source_path.rglob("*")
+            if ipath.is_file()
+        )
+        self._new_hashes.extend(new_records)
 
     def add_from_tar(self, source: Union[Path, BinaryIO], iso_path: Path) -> None:
         source_fp = source.open("rb") if isinstance(source, Path) else source
@@ -46,12 +51,12 @@ class AutoInstallBuilder(object):
             if info.isdir():
                 self._source_iso.create_directory(path)
             else:
-                fp = tar_file.extractfile(info)
-                # calculate and add md5 here
-                fp = tar_file.extractfile(info)
-                assert fp is not None
+                with cast(BinaryIO, tar_file.extractfile(info)) as fp:
+                    self._new_hashes.append(create_hash_file_record(fp, path))
+
                 file_mode = 0o0100555 if info.mode & stat.S_IXUSR else None
-                self._source_iso.write_fp(path, fp, length=info.size, file_mode=file_mode)
+                fp = cast(BinaryIO, tar_file.extractfile(info))
+                self._source_iso.write_file(fp, path, length=info.size, file_mode=file_mode)
 
     def build(self) -> None:
         self._add_autoinstall()
@@ -67,12 +72,12 @@ class AutoInstallBuilder(object):
             new_records = list(
                 itertools.chain((r for r in records if r.path != grub_path_str), [self._grub_hash])
             )
-        with self._source_iso.replace_file_write(md5_path) as file:
+        with self._source_iso.open_file_replace(md5_path) as file:
             write_hash_file(io.TextIOWrapper(file), new_records)
 
     def _update_grub(self) -> None:
-        grub_text = self._source_iso.read_text(self.grub_path)
-        isolinux_text = self._source_iso.read_text(self.isolinux_path)
+        grub_text = read_text(self._source_iso, self.grub_path)
+        isolinux_text = read_text(self._source_iso, self.isolinux_path)
 
         def modify_text(text: str, unsupported_mode: Optional[str], escape_semicolon: bool) -> str:
             stamp = (
@@ -94,13 +99,15 @@ class AutoInstallBuilder(object):
         grub_text = modify_text(grub_text, None if self._supports_efi else "EFI", True)
         self._grub_hash = create_hash_file_record(io.BytesIO(grub_text.encode()), self.grub_path)
 
-        self._source_iso.replace_text(self.grub_path, grub_text)
-        self._source_iso.replace_text(
-            self.isolinux_path, modify_text(isolinux_text, None if self._supports_mbr else "MBR", False)
+        replace_text(self._source_iso, self.grub_path, grub_text)
+        replace_text(
+            self._source_iso,
+            self.isolinux_path,
+            modify_text(isolinux_text, None if self._supports_mbr else "MBR", False),
         )
 
     def _add_autoinstall(self) -> None:
         ds_path = Path("/nocloud")
         self._source_iso.create_directory(ds_path)
-        self._source_iso.write_text(ds_path / "user-data", self._autoinstall_yaml)
-        self._source_iso.write_text(ds_path / "meta-data", "\n")
+        write_text(self._source_iso, ds_path / "user-data", self._autoinstall_yaml)
+        write_text(self._source_iso, ds_path / "meta-data", "\n")
